@@ -1,4 +1,5 @@
 import copy
+from sre_constants import IN
 from tabnanny import check
 from CSVReader import CSVReader
 from DR import DR
@@ -26,6 +27,8 @@ class Program:
         self.UAV_path_list : list[Path] = []
 
         self.update_fail_node_list = []
+        
+        self.min_total_time = INFINITE     #최종 도착 시간
 
 
     def get_available_DR_path(self, target_node):     #DR_path_list 중에 target 노드와 가장 가까운 마지막 노드를 가진 available_DR_path를 출력
@@ -196,22 +199,32 @@ class Program:
                 last_fail_node_list.append(node_idx)
 
             last_fail_node_list = list(set(last_fail_node_list))
-            dpt_node_list = []
+            except_node_list = []
             for path in self.DR_path_list:
-                dpt_node_list.append(path.dpt_idx)
+                except_node_list.append(path.dpt_idx)
+                except_node_list.append(path.arv_idx)
             for path in self.UAV_path_list:
-                dpt_node_list.append(path.dpt_idx)
-                
-            dpt_node_list = list(set(dpt_node_list))
-            for node in dpt_node_list:
+                except_node_list.append(path.dpt_idx)
+                except_node_list.append(path.arv_idx)
+
+            except_node_list = list(set(except_node_list))
+            for node in except_node_list:
                 try:     
                     last_fail_node_list.remove(node)
                 except:   #처리할 수 없는 에러 발생 시 pass
                     pass
-            print('fail:', check_node)
+            print('fail:', last_fail_node_list)
 
             for check_node in last_fail_node_list:
-                self.update(check_node)
+                print('Update START')
+                self.update(check_node)    
+                print('Update END')
+                print('check_node:', check_node)
+                for path in self.DR_path_list:
+                    print('dr:',path)
+                for path in self.UAV_path_list:
+                    print('UAV:',path)
+                print('\n')    
                 self.choose_SK_usage(check_node, [], 'last_try')
                 self.update_fail_node_list.clear()
 
@@ -283,7 +296,7 @@ class Program:
         for i in range (1,idx):
             prev = i -1
             cur = i
-            accum_time = self.taupp_graph.get_distance(prev, cur)
+            accum_time += self.taupp_graph.get_distance(prev, cur)
         accum_time += self.taupp_graph.get_distance(path.nodes[0], path.dpt_idx)
         return accum_time
 
@@ -370,13 +383,16 @@ class Program:
         DR_path = self.get_available_DR_path(check_node)
         DR_path_info_when_DR = self.calculate_DR_path(check_node, greedy_path_when_DR, DR_path)
 
-        if mode == 'last_try':
-            DR_path_info_when_DR = None
-
         #C. check_node가 UAV에 있을 때 총 거리
         truck_node_list_when_UAV = self.greedy_truck_node_list(SK_node_cand_list)
         greedy_path_when_UAV = self.greedy_tsp(truck_node_list_when_UAV)
         UAV_path_info_when_UAV = self.calculate_UAV_path(check_node, greedy_path_when_UAV)
+
+        if mode == 'last_try':
+            DR_path_info_when_DR = None
+            UAV_path_info_when_UAV = None
+            print('Truck_path:', greedy_path_when_DR)
+
 
         UAV_path_list = self.get_nearest_UAV_path_list(check_node)
         
@@ -395,10 +411,10 @@ class Program:
                 new_UAV_path.nodes.append(nearest_DR_node_idx)
                 UAV_path_info_when_UAV2 = self.calculate_UAV_path(check_node, greedy_path_when_UAV, new_UAV_path)     #new_UAV_path가 들어갔을때 계산
                 if (UAV_path_info_when_UAV2 != None):     #UAV_path_info_when_UAV2가 존재하면     
-                    if UAV_path_info_when_UAV != None:
-                        print('--------------------------------------')
-                        print (f'UAV: {UAV_path_info_when_UAV[2]}, UAV2: {UAV_path_info_when_UAV2[2]}, ')  
-                        print('--------------------------------------')
+                    # if UAV_path_info_when_UAV != None:
+                    #     print('--------------------------------------')
+                    #     print (f'UAV: {UAV_path_info_when_UAV[2]}, UAV2: {UAV_path_info_when_UAV2[2]}, ')  
+                    #     print('--------------------------------------')
                     if UAV_path_info_when_UAV == None or (UAV_path_info_when_UAV2[2] < UAV_path_info_when_UAV[2] + UAV_path.path_time):     #기존 UAV_path가 없거나 new_UAV_path가 더 작으면
                         UAV_path_info_when_UAV = UAV_path_info_when_UAV2     #덮어씌운다
                         if DR_path_info_when_DR != None:
@@ -413,13 +429,17 @@ class Program:
                             nearest_DR_path.left_parcel -= 1  
                     else:
                         UAV_path = None    
-
-
                 else:
                     UAV_path = None     #UAV_path_info_when_UAV2가 존재하지 않으면 None
             else:
                 UAV_path = None     #가장 가까운 DR_path가 존재하지 않으면 None    
-        is_assigned = self.assign_DR_UAV(DR_path, DR_path_info_when_DR, UAV_path, UAV_path_info_when_UAV)
+        
+        is_assigned = False
+        if DR_path_info_when_DR != None or UAV_path_info_when_UAV != None:     #둘다 배정되지 않으면 현재 sequence 취소
+            truck_path_time = self.get_truck_cum_dist(greedy_path_when_DR)
+            if mode == 'update' or truck_path_time[-1] <= self.min_total_time:
+                self.min_total_time = truck_path_time[-1]
+                is_assigned = self.assign_DR_UAV(DR_path, DR_path_info_when_DR, UAV_path, UAV_path_info_when_UAV)
 
         if is_assigned == False and mode == 'update':
             self.update_fail_node_list.append(check_node)
@@ -613,8 +633,8 @@ class Program:
                     cand_node = temp
                 
                 break
-            elif SK.SK_num == 'UAV' and len(middle_nodes) > 0:
-                print(f'truck:[{dpt_node}:{cand_node}] {truck_dist}, UAV: [{SK_path_trying}] {SK_dist + total_loading_time}. Greedy_truck_path: {greedy_path}')
+            # elif SK.SK_num == 'UAV' and len(middle_nodes) > 0:
+            #     print(f'truck:[{dpt_node}:{cand_node}] {truck_dist}, UAV: [{SK_path_trying}] {SK_dist + total_loading_time}. Greedy_truck_path: {greedy_path}')
 
             
         shortest_path = [dpt_node]
