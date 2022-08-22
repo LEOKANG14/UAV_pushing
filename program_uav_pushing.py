@@ -613,7 +613,7 @@ class Program:
             for idx in range(len(SK_path_trying)-1):   #bike_a_path_trying의 거리 산정
                 cur_node = sk_graph.get_node(SK_path_trying[idx])
                 SK_dist += cur_node.get_distance(SK_path_trying[idx+1])
-                total_loading_time += SK.loading_time
+                total_loading_time += SK.loading_time   #####[수정 필요]
             
             #truck_dist 산정
             truck_dist = abs(
