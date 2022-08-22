@@ -35,12 +35,13 @@ print(result_6)
 #result_8 = program.calculate_DR_1_path([3, 15, 8], result_2)
 #print("bike_a_path(bike_num, dpt_node, target_node, arv_node, bike_dist):", result_8)
 # [1, 20, 18, 9, 19]
-#input_list = [5, 9, 1, 4, 11, 12, 18, 6, 8, 2, 19, 7, 3, 17, 20, 10, 13, 14, 15, 16]
+#input_list = [6, 9, 10, 5, 16, 20, 15, 2, 13, 1, 14, 17, 3, 7, 19, 8, 18, 12, 11, 4]
 input_list = random.sample(range(1,21),20)
 print('input_list:', input_list)
 
 print('#######normal try########')
-program.decision_best_path(input_list, False)
+mode = 'default'
+program.decision_best_path(input_list, mode)
 print('DR: ', len(program.DR_path_list))
 for path in program.DR_path_list:
     print(path)
@@ -52,7 +53,9 @@ for path in program.UAV_path_list:
 # is last try로 마지막 쥐어짜서 넣기
 program2 = Program()
 print('#######is last try########')
-program2.decision_best_path(input_list, True)
+
+mode = 'parcel handover'
+program2.decision_best_path(input_list, mode)
 print('DR: ', len(program2.DR_path_list))
 for path in program2.DR_path_list:
     print(path)
